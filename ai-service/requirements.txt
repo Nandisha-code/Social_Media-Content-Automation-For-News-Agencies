@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+torch
+torchvision
+transformers
+pillow
+accelerate
+sentencepiece
+protobuf
+tiktoken

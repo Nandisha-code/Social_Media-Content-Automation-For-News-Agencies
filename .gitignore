@@ -1,0 +1,45 @@
+# =========================
+# Node / JavaScript
+# =========================
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Python
+# =========================
+venv/
+__pycache__/
+*.pyc
+.env
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =========================
+# OS Generated Files
+# =========================
+.DS_Store
+Thumbs.db
