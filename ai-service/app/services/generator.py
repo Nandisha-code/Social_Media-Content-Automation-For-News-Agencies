@@ -1,209 +1,212 @@
-# import torch
-# from PIL import Image
-# from app.models.loader import (
-#     blip_processor,
-#     blip_model,
-#     tokenizer,
-#     text_model,
-#     device,
-# )
-
-# # -------------------------------------------------
-# # IMAGE → CAPTION
-# # -------------------------------------------------
-# def generate_image_caption(image: Image.Image) -> str:
-#     with torch.no_grad():
-#         inputs = blip_processor(image, return_tensors="pt").to(device)
-#         output = blip_model.generate(**inputs, max_length=50)
-#     return blip_processor.decode(output[0], skip_special_tokens=True)
-
-
-# # -------------------------------------------------
-# # FORCE EXACT 250 CHARACTERS
-# # -------------------------------------------------
-# def normalize_to_250(text: str) -> str:
-#     text = " ".join(text.split())
-
-#     if len(text) > 250:
-#         cut = text[:250]
-#         if " " in cut:
-#             cut = cut.rsplit(" ", 1)[0]
-#         return cut.ljust(250)
-
-#     if len(text) < 250:
-#         neutral_pad = (
-#             " Officials shared details during the event, "
-#             "highlighting its broader significance."
-#         )
-#         while len(text) + len(neutral_pad) < 250:
-#             text += neutral_pad
-#         return text[:250]
-
-#     return text
-
-
-# # -------------------------------------------------
-# # HEADLINE → NEWS TWEET (MODEL-DRIVEN)
-# # -------------------------------------------------
-# def generate_tweet(headline: str, image_caption: str = "", target_words: int = 250) -> str:
-#     headline = headline.strip()
-
-#     seed = (
-#         "News update — "
-#         f"{headline.capitalize()}. "
-#         "According to official sources, "
-#     )
-
-#     if image_caption:
-#         seed += f"the visuals show {image_caption.lower()}, "
-
-#     seed += "as part of the reported development."
-
-#     inputs = tokenizer(
-#         seed,
-#         return_tensors="pt",
-#         truncation=True,
-#         max_length=256
-#     ).to(device)
-
-#     with torch.no_grad():
-#         output = text_model.generate(
-#             **inputs,
-#             do_sample=True,
-#             top_p=0.93,
-#             temperature=1.15,
-#             min_length=200,      # Increased for longer output
-#             max_length=300,      # Increased to allow 250+ words
-#             repetition_penalty=1.25,
-#             no_repeat_ngram_size=3
-#         )
-
-#     generated = tokenizer.decode(
-#         output[0], skip_special_tokens=True
-#     ).strip()
-
-#     # Choose which normalization you want:
-#     return normalize_to_250_words(generated)  # For 250 WORDS
-#     # return normalize_to_250_chars(generated)  # For 250 CHARACTERS
-
-
-# # -------------------------------------------------
-# # MAIN ENTRY
-# # -------------------------------------------------
-# def generate_content(headline: str, image=None):
-#     image_caption = generate_image_caption(image) if image else ""
-#     tweet = generate_tweet(headline, image_caption)
-
-#     return {
-#         "headline": headline,
-#         "image_caption": image_caption,
-#         "tweet": tweet,  # ALWAYS 250 chars
-#     }
-
 import torch
+import re
 from PIL import Image
-from app.models.loader import (
-    blip_processor,
-    blip_model,
-    tokenizer,
-    text_model,
-    device
-)
+
 
 # ---------------------------------
 # IMAGE → CAPTION (BLIP)
 # ---------------------------------
 def generate_image_caption(image: Image.Image) -> str:
+    from app.models.loader import blip_processor, blip_model, device
+
     with torch.no_grad():
         inputs = blip_processor(image, return_tensors="pt").to(device)
-        output = blip_model.generate(**inputs, max_length=40)
+        output = blip_model.generate(**inputs, max_length=50)
 
-    return blip_processor.decode(output[0], skip_special_tokens=True)
-
-
-# ---------------------------------
-# FORCE EXACT 250 CHARACTERS
-# ---------------------------------
-def normalize_to_250_chars(text: str) -> str:
-    text = " ".join(text.split())
-
-    if len(text) > 250:
-        cut = text[:250]
-        if " " in cut:
-            cut = cut.rsplit(" ", 1)[0]
-        return cut.ljust(250)
-
-    if len(text) < 250:
-        filler = " Officials shared further details during the interaction."
-        while len(text) + len(filler) < 250:
-            text += filler
-        return text[:250]
-
-    return text
+    caption = blip_processor.decode(output[0], skip_special_tokens=True)
+    return caption.strip()
 
 
 # ---------------------------------
-# HEADLINE → PROFESSIONAL TWEET
+# TEXT NORMALIZATION
 # ---------------------------------
-def generate_tweet(headline: str, image_caption: str = "") -> str:
+def normalize_headline(headline: str) -> str:
+    """Clean and normalize raw headline text"""
+    headline = headline.lower()
+    headline = re.sub(r"\s+", " ", headline)
     headline = headline.strip()
+    return headline
 
-    # Strong structured prompt
-    prompt = (
-        "Write a professional news-style tweet.\n"
-        f"Headline: {headline}\n"
+
+# ---------------------------------
+# CONTROLLED EXPANSION
+# ---------------------------------
+def controlled_expansion(headline: str) -> str:
+    """
+    Safely expand short headlines to near 300 characters
+    without adding any new facts.
+    """
+
+    base = headline.capitalize()
+
+    safe_fillers = (
+        " This issue has attracted considerable public attention and continues to be "
+        "a subject of ongoing discussion among sports followers and analysts. The matter "
+        "has generated widespread reactions and remains an important talking point within "
+        "relevant circles, keeping the focus firmly on the concerns being raised."
     )
 
-    if image_caption:
-        prompt += f"Image context: {image_caption}\n"
+    result = base + "." + safe_fillers
 
-    prompt += "Tweet:"
+    return result[:295]
+
+
+# ---------------------------------
+# HEADLINE → 300 CHAR TWEET
+# ---------------------------------
+def generate_tweet(headline: str) -> str:
+    """
+    Generate professional tweet close to 300 characters
+    while avoiding hallucination.
+    """
+
+    from app.models.loader import tokenizer, text_model, device
+
+    headline = normalize_headline(headline)
+
+    prompt = f"""
+Create a professional news tweet of around 280 to 300 characters.
+
+Rules:
+- Use ONLY the information present in the headline
+- Do NOT add any new facts, names, sources, times, or opinions
+- Expand the sentence professionally to reach near 300 characters
+- Use formal journalistic language
+- Correct grammar and spelling
+- Do not exceed 300 characters
+
+Headline: {headline}
+
+Tweet:
+"""
 
     inputs = tokenizer(
         prompt,
         return_tensors="pt",
         truncation=True,
-        max_length=256
+        max_length=300
     ).to(device)
 
     with torch.no_grad():
         output = text_model.generate(
             **inputs,
-            do_sample=True,
-            top_p=0.92,
-            temperature=0.8,
             max_new_tokens=120,
-            repetition_penalty=1.15,
+            num_beams=8,
+            do_sample=False,
+            repetition_penalty=1.8,
             no_repeat_ngram_size=3,
-            pad_token_id=tokenizer.eos_token_id
+            early_stopping=True
         )
 
-    generated = tokenizer.decode(
-        output[0],
-        skip_special_tokens=True
-    ).strip()
+    generated = tokenizer.decode(output[0], skip_special_tokens=True).strip()
 
-    # Remove the prompt from output if model repeats it
-    if "Tweet:" in generated:
-        generated = generated.split("Tweet:")[-1].strip()
+    # ---------------------------------
+    # HALLUCINATION SAFETY FILTER
+    # ---------------------------------
+    banned_terms = [
+        "reported", "according to", "sources", "said",
+        "ESPN", "BBC", "CNN", "GMT", "ET",
+        "officials", "experts", "confirmed"
+    ]
 
-    return normalize_to_250_chars(generated)
+    for term in banned_terms:
+        if term.lower() in generated.lower():
+            return controlled_expansion(headline)
+
+    generated = " ".join(generated.split()).strip()
+
+    # If too short, use safe expansion
+    if len(generated) < 220:
+        generated = controlled_expansion(headline)
+
+    # Enforce 300 char limit
+    if len(generated) > 300:
+        generated = generated[:300].rsplit(" ", 1)[0]
+
+    if not generated.endswith((".", "!", "?")):
+        generated += "."
+
+    return generated
+
+
+# ---------------------------------
+# HASHTAG EXTRACTION
+# ---------------------------------
+def extract_hashtags(headline: str) -> str:
+    """Extract relevant hashtags from headline"""
+
+    headline_lower = headline.lower()
+
+    hashtag_map = {
+        # Sports
+        "icc": "#ICC",
+        "cricket": "#Cricket",
+        "bcci": "#BCCI",
+        "match": "#Cricket",
+        "tournament": "#Tournament",
+        "bowling": "#Cricket",
+
+        # Military/Defense
+        "rafale": "#Rafale",
+        "fighter jet": "#FighterJet",
+        "air force": "#AirForce",
+
+        # Politics
+        "prime minister": "#PM",
+        "president": "#President",
+        "minister": "#Minister",
+        "india": "#India",
+
+        # General
+        "election": "#Election",
+        "protest": "#Protest",
+        "deal": "#Deal",
+    }
+
+    hashtags = []
+
+    for keyword, tag in hashtag_map.items():
+        if keyword in headline_lower:
+            hashtags.append(tag)
+
+    hashtags = list(dict.fromkeys(hashtags))
+
+    return " ".join(hashtags[:3]) if hashtags else "#News"
 
 
 # ---------------------------------
 # MAIN ENTRY FUNCTION
 # ---------------------------------
-def generate_content(headline: str, image=None):
+def generate_content(headline: str, image=None, image_caption: str = None):
+    """
+    Generate optimized content for news automation
+    with tweet target close to 300 characters
+    """
 
-    image_caption = ""
+    generated_caption = ""
+
     if image:
-        image_caption = generate_image_caption(image)
+        generated_caption = generate_image_caption(image)
 
-    tweet = generate_tweet(headline, image_caption)
+    if image_caption:
+        generated_caption = image_caption.strip()
+
+    # Generate near-300 char tweet
+    tweet = generate_tweet(headline)
+
+    # Generate hashtags
+    hashtags = extract_hashtags(headline)
+
+    final_tweet = tweet
+
+    # Attach hashtags only if within 300 limit
+    if hashtags:
+        if len(tweet) + len(hashtags) + 1 <= 300:
+            final_tweet = f"{tweet} {hashtags}"
 
     return {
         "headline": headline,
-        "image_caption": image_caption,
-        "tweet": tweet  # ALWAYS EXACTLY 250 characters
+        "image_caption": generated_caption,
+        "tweet": final_tweet,
+        "tweet_length": len(final_tweet)
     }
-    
