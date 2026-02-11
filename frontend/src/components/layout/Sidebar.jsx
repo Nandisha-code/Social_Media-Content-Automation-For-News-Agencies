@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   LayoutDashboard,
   PenLine,
@@ -5,15 +6,15 @@ import {
   BarChart2,
   Rss,
   Settings,
-} from "lucide-react";
+} from 'lucide-react';
 
 const menu = [
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Create", icon: PenLine, active: true },
-  { label: "History", icon: History },
-  { label: "Analytics", icon: BarChart2 },
-  { label: "RSS Feeds", icon: Rss },
-  { label: "Settings", icon: Settings },
+  { label: 'Dashboard', icon: LayoutDashboard },
+  { label: 'Create', icon: PenLine, active: true },
+  { label: 'History', icon: History },
+  { label: 'Analytics', icon: BarChart2 },
+  { label: 'RSS Feeds', icon: Rss },
+  { label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -30,12 +31,11 @@ export default function Sidebar() {
           {menu.map((item) => (
             <div
               key={item.label}
-              className={`flex items-center gap-3 px-4 py-2 rounded-lg cursor-pointer
-                ${
-                  item.active
-                    ? "bg-cyan-500/10 text-cyan-400"
-                    : "text-slate-400 hover:bg-slate-800"
-                }`}
+              className={`flex items-center gap-3 px-4 py-2 rounded-lg cursor-pointer transition-all ${
+                item.active
+                  ? 'bg-cyan-500/10 text-cyan-400'
+                  : 'text-slate-400 hover:bg-slate-800'
+              }`}
             >
               <item.icon size={18} />
               <span>{item.label}</span>

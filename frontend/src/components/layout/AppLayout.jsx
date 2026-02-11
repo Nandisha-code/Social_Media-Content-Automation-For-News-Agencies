@@ -1,5 +1,6 @@
-import Sidebar from "./Sidebar";
-import Footer from "./Footer";
+import React from 'react';
+import Sidebar from './Sidebar';
+import Footer from './Footer';
 
 export default function AppLayout({ children }) {
   return (
